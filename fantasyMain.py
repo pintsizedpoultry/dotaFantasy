@@ -2,6 +2,8 @@ import pandas as pd
 import requests
 import json
 from datetime import datetime
+import os
+
 cd = '/Users/aidankilbourn/Desktop/Dota Fantasy/GameJsons/'
 steamAPIBASE = "http://api.steampowered.com/"
 steamKey = '8E66EC3262A8928C78C0E573625E3C8F'
@@ -19,15 +21,21 @@ def readInit():
     try: 
         f = open('init.txt', 'r')
     except:
-        print('no init file found, don\' delete it next time idiot')
+        print('no init file found, don\'t delete it next time idiot')
         return
+    
+    # Reads timestamps to divide weeks
     line = f.readline().strip()
     while line != '':
         weeks.append(datetime.strptime(line, '%a %b %d %H:%M:%S %Y'))
         line = f.readline().strip()
+
+    # Reads player fantasy teams, comma delimited
     line = f.readline().strip()
     while line != '':
-        args = line.split(' ')
+        # Format:
+        # weekNum,person,args(list of players, comma delimited)
+        args = line.split(',')
         weekNum = args.pop(0)
         person = args.pop(0)
         lineups[weekNum] = {person: []}
@@ -48,8 +56,11 @@ def saveJson(gameID):
 #Takes a json file and turns it into a column of a df 
 #returns a set of sets(df) with the 10 players, their names, id, team id, fantasy components,
 #total fantasy score and region/time data
-def parseScore(jsonFile):
-    game = json.loads(jsonFile.read())
+def parseScore(jsonInputFname, csvOutputFname):
+    jsonFileInput = open(jsonInputFname, encoding='utf8')
+    csvOutput = open(csvOutputFname, 'a', encoding='utf8')
+
+    game = json.loads(jsonFileInput.read())
     stats = ['account_id', 'personaname', 'kills', 'deaths', 'assists',
     'last_hits', 'gold_per_min', 'tower_kills', 'roshan_kills', 'observer_uses', 'sentry_uses', 
     'camps_stacked', 'rune_pickups',  'stuns', 'first_blood', 'teamfights', 'start_time', '(Time)']
@@ -79,9 +90,13 @@ def parseScore(jsonFile):
     df['fantasy_score'] += df['tower_kills'] * 1 + df['roshan_kills'] * 1 + df['teamfights'] * 3 + df['observer_uses']* 0.5 + df['sentry_uses']* 0.5 
     df['fantasy_score'] += df['rune_pickups'] * 0.25 + df['first_blood'] * 4.0 + df['stuns'] * 0.05 + df['camps_stacked'] * 0.5
     df['week'] =getWeeks(df['(Time)'])
-    print(df)
+    new_df = df[['account_id', 'personaname', 'week', 'fantasy_score']]
+    if os.stat(csvOutputFname).st_size == 0:
+        new_df.to_csv(path_or_buf = csvOutputFname, sep='\t', index = False, header = True, mode = 'a')
+    else:
+        new_df.to_csv(path_or_buf = csvOutputFname, sep='\t', index = False, header = False, mode = 'a')
     #add date/time/region info
-    return df
+    return new_df
 
 #takes a set of games and checks if it's been processed
 #returns false if the game has already been processed
@@ -150,14 +165,13 @@ def updateTeams():
     f.write(requests.get("https://api.opendota.com/api/teams").text)
     f.close()
 
-def calcScores(df):
-    scoreDf = df.groupby('account_id')
-    print(scoreDf.groups)
-    topTwo = scoreDf.head(2)
-    print(topTwo)
-    # scoreDf = df
-    # scoreDf = scoreDf.groupby('account_id', 'week')['fantasy_score'].sum(axis=1)
-    # return scoreDf
+def calcScores(week, players):
+    df = pd.read_csv('scores.txt', sep='\t')
+    scoreDf = df[df['week'] == week].groupby(['account_id']).apply(lambda x : x.sort_values(by = 'fantasy_score', ascending = False).head(2).reset_index(drop = True).sum())
+    totalScore = 0
+    for player in players:
+        totalScore += scoreDf.at[player, 'fantasy_score']
+    return totalScore
 
 def update():
     f = open('processedGames.txt', 'a')
@@ -187,6 +201,7 @@ def getWeek(date):
 def endWeek():
     weeks.append(datetime.today())
 
+
 #f = open('kurt.txt', 'r')
 #parseScore(f)
 #test = getNewGames()
@@ -196,6 +211,8 @@ def endWeek():
 #TODO: Use time in order to get fantasy score for a given player for a week
 #TODO: Create a pandas table with playerID as index, and weekly score as values from data
 #TODO: Create excel interface
-
 readInit() #remember to call this every time
-update()
+#parseScore('kurt.txt', 'scores.txt')
+players = [51144617, 122688781]
+print(calcScores(0, players))
+# update()
