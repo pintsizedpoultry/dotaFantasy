@@ -4,7 +4,7 @@ import json
 from datetime import datetime
 import os
 
-cd = '/Users/aidankilbourn/Desktop/Dota Fantasy/GameJsons/'
+cd = 'C:\\Users\\Aidan\\Desktop\\dotaFantasy-main\\GameJsons\\'
 steamAPIBASE = "http://api.steampowered.com/"
 steamKey = '8E66EC3262A8928C78C0E573625E3C8F'
 steamGETGAME = steamAPIBASE + 'IDOTA2Match_570/GetMatchDetails/V001?key=' + steamKey
@@ -19,7 +19,7 @@ leagues = {
 }
 def readInit():
     try: 
-        f = open('init.txt', 'r')
+        f = open('init.txt', 'r', encoding= 'utf8')
     except:
         print('no init file found, don\'t delete it next time idiot')
         return
@@ -46,7 +46,7 @@ def readInit():
 #Returns a file object that can be used to access the JSON
 def saveJson(gameID):
     fileName = cd + gameID + '.txt'
-    currFile = open(fileName, 'w')
+    currFile = open(fileName, 'w+', encoding = 'utf8')
     print("File created with name:", fileName)
     #Make the API call to openDota
     APICALL = openDotaGETGAME + gameID
@@ -66,7 +66,10 @@ def parseScore(jsonInputFname, csvOutputFname):
     'camps_stacked', 'rune_pickups',  'stuns', 'first_blood', 'teamfights', 'start_time', '(Time)']
     gameStats = []
     playerStats = {}
-    numTeamfights = len(game['teamfights'])
+    try:
+        numTeamfights = len(game['teamfights'])
+    except:
+        numTeamfights = 0
     for stat in stats:
         playerStats[stat] = []
     for playerNum in range(0,10):
@@ -105,7 +108,7 @@ def updateProcessedGames(gameID, region, division, seriesID, team1Name, team2Nam
         temp = team1Name
         team1Name = team2Name
         team2Name = temp
-    f = open("processedGames.txt", 'r+t')
+    f = open("processedGames.txt", 'r+t', encoding= 'utf8')
     attributes = team1Name, team2Name, gameID, region, division, seriesID
     str = ' '.join(attributes)
     if f.read().__contains__(str): return False
@@ -116,7 +119,7 @@ def updateProcessedGames(gameID, region, division, seriesID, team1Name, team2Nam
     return True
 
 def getNewGames():
-    f = open("processedGames.txt", 'r') 
+    f = open("processedGames.txt", 'r', encoding= 'utf8') 
     newGames = {}
     pGames = f.read()
     for league in leagues:
@@ -140,7 +143,7 @@ def fillGameNames(match_id, league, series_id, radiant_team_id, dire_team_id):
     gameData.append(region)
     gameData.append(division)
     gameData.append(series_id)
-    teamList = json.loads(open('teams.txt', 'r').read())
+    teamList = json.loads(open('teams.txt', 'r', encoding= 'utf8').read())
     tracker = 0
     for team in teamList:
         if tracker < 2 and team['team_id'] == radiant_team_id:
@@ -156,12 +159,12 @@ def fillGameNames(match_id, league, series_id, radiant_team_id, dire_team_id):
     return gameData
 
 def createTestGame(gameID = '6256990442'):
-    f = open('test.txt', 'w')
+    f = open('test.txt', 'w', encoding= 'utf8')
     f.write(requests.get("https://api.opendota.com/api/matches/" + gameID).text)
     f.close()
 
 def updateTeams():
-    f = open('teams.txt', 'w')
+    f = open('teams.txt', 'w' , encoding = 'utf8')
     f.write(requests.get("https://api.opendota.com/api/teams").text)
     f.close()
 
@@ -174,11 +177,15 @@ def calcScores(week, players):
     return totalScore
 
 def update():
-    f = open('processedGames.txt', 'a')
+    f = open('processedGames.txt', 'a', encoding= 'utf8')
     newGames = getNewGames()
     for game in newGames:
         print(game)
         saveJson(str(game))
+        try:
+            parseScore(cd + str(game) + '.txt', 'scores.txt')
+        except:
+            f.write('ERROR ON:')
         for word in fillGameNames(*newGames[game]):
             f.write(str(word) + '\t')
         f.write('\n')
@@ -197,6 +204,8 @@ def getWeek(date):
         if weeks[x] > datetime.strptime(date, '%a %b %d %H:%M:%S %Y'):
             return x
     return -1
+# def calcWeek(week):
+#     try:
 
 def endWeek():
     weeks.append(datetime.today())
@@ -208,11 +217,10 @@ def endWeek():
 #print(test)
 #pdate()
 #getNewGames()
-#TODO: Use time in order to get fantasy score for a given player for a week
-#TODO: Create a pandas table with playerID as index, and weekly score as values from data
 #TODO: Create excel interface
-readInit() #remember to call this every time
+#readInit() #remember to call this every time
 #parseScore('kurt.txt', 'scores.txt')
-players = [51144617, 122688781]
-print(calcScores(0, players))
-# update()
+#players = [51144617, 122688781]
+#print(calcScores(0, players))
+update()
+print("DONE")
